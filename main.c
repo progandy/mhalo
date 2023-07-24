@@ -33,6 +33,9 @@
 #if defined(WBG_HAVE_WEBP)
  #include "webp.h"
 #endif
+#if defined(WBG_HAVE_SVG)
+ #include "svg.h"
+#endif
 
 /* Top-level globals */
 static struct wl_display *display;
@@ -411,6 +414,10 @@ main(int argc, const char *const *argv)
 #if defined(WBG_HAVE_WEBP)
     if (image == NULL)
         image = webp_load(fp, image_path);
+#endif
+#if defined(WBG_HAVE_SVG)
+    if (image == NULL)
+        image = svg_load(fp, image_path);
 #endif
     if (image == NULL) {
         fprintf(stderr, "error: %s: failed to load\n", image_path);

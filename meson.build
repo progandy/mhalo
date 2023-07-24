@@ -46,12 +46,20 @@ if cc.has_argument('-fmacro-prefix-map=/foo=')
   add_project_arguments('-fmacro-prefix-map=@0@='.format(relative_dir), language: 'c')
 endif
 
+math = cc.find_library('m')
 pixman = dependency('pixman-1')
 png = dependency('libpng', required: get_option('png'))
 jpg = dependency('libjpeg', required: get_option('jpeg'))
 webp = dependency('libwebp', required: get_option('webp'))
+svg = declare_dependency(
+  sources: ['nanosvg.c', '3rd-party/nanosvg/src/nanosvg.h',
+            'nanosvgrast.c', '3rd-party/nanosvg/src/nanosvgrast.h'],
+  include_directories: '3rd-party/nanosvg/src',
+  dependencies: math,
+)
+have_svg = get_option('svg')
 
-if not png.found() and not jpg.found() and not webp.found()
+if not png.found() and not jpg.found() and not webp.found() and not have_svg
   error('you must enable at least one image format')
 endif
 
@@ -63,6 +71,9 @@ if jpg.found()
 endif
 if webp.found()
   add_project_arguments('-DWBG_HAVE_WEBP=1', language:'c')
+endif
+if have_svg
+  add_project_arguments('-DWBG_HAVE_SVG=1', language:'c')
 endif
 
 wayland_protocols = dependency('wayland-protocols')
@@ -113,6 +124,9 @@ endif
 if webp.found()
   image_format_sources += ['webp.c', 'webp.h']
 endif
+if have_svg
+  image_format_sources += ['svg.c', 'svg.h']
+endif
 
 executable(
     'wbg',
@@ -122,7 +136,7 @@ executable(
     'stride.h',
     image_format_sources,
     wl_proto_src + wl_proto_headers, version,
-    dependencies: [pixman, png, jpg, webp, wayland_client, tllist],
+    dependencies: [pixman, png, jpg, webp, svg, wayland_client, tllist],
     install: true)
 
 summary(
@@ -130,6 +144,7 @@ summary(
     'PNG support': png.found(),
     'JPEG support': jpg.found(),
     'WebP support': webp.found(),
+    'SVG support': have_svg
   },
   bool_yn: true
 )

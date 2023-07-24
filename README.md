@@ -22,7 +22,8 @@ wallpaper _may_ be added in the future.
 * libjpeg (optional)
 * libwebp (optional)
 
-Note that at least one of _libpng_, _libjpeg_ and _libwebp_ is required.
+Note that if SVG support is disabled at least one of _libpng_, _libjpeg_ and
+_libwebp_ is required.
 
 
 ### Compile time
@@ -44,9 +45,19 @@ By default, PNG, JPEG and WebP support is auto-detected. You can force
 disable/enable them with the meson command line options
 `-Dpng=disabled|enabled`, `-Djpeg=disabled|enabled` and
 `-Dwebp=disabled|enabled`.
+SVG support is enabled by default (as it does not require additional
+dependencies). You can disable it with the meson command line option
+`-Dsvg=false`
 
 
 ## Derivative work
 
 * https://codeberg.org/droc12345/wbg - adds support for directories
   with images, random, timer flags.
+
+
+## License
+Wbg is released under the [MIT license](LICENSE).
+
+Wbg (optionally) uses nanosvg, released under the [Zlib
+license](3rd-party/nanosvg/LICENSE.txt).
