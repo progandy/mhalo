@@ -1,7 +1,9 @@
 #include "shm.h"
 
-#include <unistd.h>
 #include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -12,6 +14,10 @@
 #define LOG_MODULE "shm"
 #include "log.h"
 #include "stride.h"
+
+#if !defined(MAP_UNINITIALIZED)
+ #define MAP_UNINITIALIZED 0
+#endif
 
 static void
 buffer_destroy(struct buffer *buf)
@@ -53,7 +59,21 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie)
     pixman_image_t *pix = NULL;
 
     /* Backing memory for SHM */
-    pool_fd = memfd_create("wbg-wayland-shm-buffer-pool", MFD_CLOEXEC);
+
+    /*
+     * Older kernels reject MFD_NOEXEC_SEAL with EINVAL. Try first
+     * *with* it, and if that fails, try again *without* it.
+     */
+    errno = 0;
+    pool_fd = memfd_create(
+        "wbg-wayland-shm-buffer-pool",
+        MFD_CLOEXEC | MFD_ALLOW_SEALING | MFD_NOEXEC_SEAL);
+
+    if (pool_fd < 0 && errno == EINVAL) {
+        pool_fd = memfd_create(
+            "wbg-wayland-shm-buffer-pool", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+    }
+
     if (pool_fd == -1) {
         LOG_ERRNO("failed to create SHM backing memory file");
         goto err;
@@ -71,6 +91,15 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie)
     if (mmapped == MAP_FAILED) {
         LOG_ERR("failed to mmap SHM backing memory file");
         goto err;
+    }
+
+    /* Seal file - we no longer allow any kind of resizing */
+    /* TODO: wayland mmaps(PROT_WRITE), for some unknown reason, hence we cannot use F_SEAL_FUTURE_WRITE */
+    if (fcntl(pool_fd, F_ADD_SEALS,
+              F_SEAL_GROW | F_SEAL_SHRINK | /*F_SEAL_FUTURE_WRITE |*/ F_SEAL_SEAL) < 0)
+    {
+        LOG_ERRNO("failed to seal SHM backing memory file");
+        /* This is not a fatal error */
     }
 
     pool = wl_shm_create_pool(shm, pool_fd, size);
