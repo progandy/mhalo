@@ -11,6 +11,12 @@
 
 
 ### Changed
+
+* Image is now zoomed, rather than stretched ([#6][6]).
+
+[6]: https://codeberg.org/dnkl/wbg/issues/6
+
+
 ### Deprecated
 ### Removed
 ### Fixed
