@@ -8,6 +8,7 @@
 ### Added
 
 * We now hint to the compositor that the background is fully opaque.
+* SVG support.
 
 
 ### Changed
