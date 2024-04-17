@@ -1,10 +1,11 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.2.0](#1-2-)
 * [1.1.0](#1-1-0)
 
 
-## Unreleased
+## 1.2.0
+
 ### Added
 
 * We now hint to the compositor that the background is fully opaque.
@@ -18,15 +19,15 @@
 [6]: https://codeberg.org/dnkl/wbg/issues/6
 
 
-### Deprecated
-### Removed
 ### Fixed
 
 * Respect the `layer_surface::closed()` event.
 
 
-### Security
 ### Contributors
+
+* Leonardo Hernández Hernández
+* sewn
 
 
 ## 1.1.0
