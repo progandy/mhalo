@@ -68,12 +68,10 @@ png_load(FILE *fp, const char *path)
     png_set_strip_16(png_ptr);  /* "pack" 16-bit colors to 8-bit */
     png_set_bgr(png_ptr);
 
-    /* pixman expects pre-multiplied alpha */
-    //png_set_alpha_mode(png_ptr, PNG_ALPHA_PREMULTIPLIED, 2.2);
-
     /* Tell libpng to expand to RGB(A) when necessary, and tell pixman
      * whether we have alpha or not */
     pixman_format_code_t format;
+
     switch (color_type) {
     case PNG_COLOR_TYPE_GRAY:
     case PNG_COLOR_TYPE_GRAY_ALPHA:
@@ -124,6 +122,32 @@ png_load(FILE *fp, const char *path)
         row_pointers[i] = &image_data[i * stride];
 
     png_read_image(png_ptr, row_pointers);
+
+    /* pixman expects pre-multiplied alpha */
+    if (format == PIXMAN_x8r8g8b8) {
+        for (int i = 0; i < height; i++) {
+            uint32_t *p = (uint32_t *)row_pointers[i];
+            for (int j = 0; j < width; j++, p++) {
+                uint8_t a = (*p >> 24) & 0xff;
+                uint8_t r = (*p >> 16) & 0xff;
+                uint8_t g = (*p >> 8) & 0xff;
+                uint8_t b = (*p >> 0) & 0xff;
+
+                if (a == 0xff)
+                    continue;
+
+                if (a == 0) {
+                    r = g = b = 0;
+                } else {
+                    r = r * a / 0xff;
+                    g = g * a / 0xff;
+                    b = b * a / 0xff;
+                }
+
+                *p = (uint32_t)a << 24 | r << 16 | g << 8 | b;
+            }
+        }
+    }
 
     pix = pixman_image_create_bits_no_clear(
         format, width, height, (uint32_t *)image_data, stride);

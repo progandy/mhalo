@@ -11,6 +11,10 @@
 ### Deprecated
 ### Removed
 ### Fixed
+
+* Alpha not being applied correctly to PNG images.
+
+
 ### Security
 ### Contributors
 
