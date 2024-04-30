@@ -19,6 +19,10 @@
  #define MAP_UNINITIALIZED 0
 #endif
 
+#if !defined(MFD_NOEXEC_SEAL)
+ #define MFD_NOEXEC_SEAL 0
+#endif
+
 static void
 buffer_destroy(struct buffer *buf)
 {

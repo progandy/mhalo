@@ -17,6 +17,9 @@
 ### Fixed
 
 * Alpha not being applied correctly to PNG images.
+* Compilation error on musl libc ([#11][11]).
+
+[11]: https://codeberg.org/dnkl/wbg/issues/11
 
 
 ### Security
