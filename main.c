@@ -420,7 +420,7 @@ main(int argc, const char *const *argv)
         image = svg_load(fp, image_path);
 #endif
     if (image == NULL) {
-        fprintf(stderr, "error: %s: failed to load\n", image_path);
+        LOG_ERR("%s: failed to load", image_path);
         fclose(fp);
         return EXIT_FAILURE;
     }
