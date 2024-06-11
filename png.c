@@ -32,7 +32,7 @@ png_load(FILE *fp, const char *path)
     /* Verify PNG header */
     uint8_t header[8] = {0};
     if (fread(header, 1, 8, fp) != 8 || png_sig_cmp(header, 0, 8)) {
-        // LOG_ERR("%s: not a PNG", path);
+        LOG_DBG("%s: not a PNG", path);
         goto err;
     }
 

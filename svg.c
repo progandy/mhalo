@@ -23,7 +23,7 @@ svg_load(FILE *fp, const char *path)
     width = image->width;
     height = image->height;
     if (width == 0 || height == 0) {
-        LOG_ERR("%s: width and/or heigth is zero, not a SVG?", path);
+        LOG_DBG("%s: width and/or heigth is zero, not a SVG?", path);
         nsvgDelete(image);
         return NULL;
     }

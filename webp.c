@@ -43,7 +43,7 @@ webp_load(FILE *fp, const char *path)
 
     /* Verify it is a webp image */
     if (!WebPGetInfo(file_data, image_size, NULL, NULL)) {
-        LOG_ERR("%s: not a WebP file", path);
+        LOG_DBG("%s: not a WebP file", path);
         goto out;
     }
 

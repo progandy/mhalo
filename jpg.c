@@ -42,7 +42,7 @@ jpg_load(FILE *fp, const char *path)
     if (setjmp(err_handler.setjmp_buffer)) {
         char err_string[JMSG_LENGTH_MAX];
         cinfo.err->format_message((j_common_ptr)&cinfo, err_string);
-        LOG_ERR("%s: %s", path, err_string);
+        LOG_DBG("%s: %s", path, err_string);
         goto err;
     }
 
