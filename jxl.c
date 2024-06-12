@@ -21,8 +21,8 @@ jxl_load(FILE *fp, const char *path)
     bool ok = false;
     uint8_t *file_data = NULL;
     uint8_t *image = NULL;
-    size_t file_size, image_size;
-    int width, height, stride;
+    size_t file_size, image_size = 0;
+    int width = 0, height = 0, stride = 0;
 
 #if defined(WBG_HAVE_JXL_THREADS)
     JxlParallelRunner *runner = NULL;
@@ -107,7 +107,7 @@ jxl_load(FILE *fp, const char *path)
                     JxlResizableParallelRunnerSuggestThreads(width, height));
 #endif
         } else if (status == JXL_DEC_NEED_IMAGE_OUT_BUFFER) {
-            size_t min_size;
+            size_t min_size = 0;
             if (JxlDecoderImageOutBufferSize(decoder, &jxl_format, &min_size)
                     != JXL_DEC_SUCCESS) {
                 LOG_ERR("%s: failed to get the minimum size of the output buffer", path);
