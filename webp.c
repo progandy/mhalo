@@ -54,6 +54,29 @@ webp_load(FILE *fp, const char *path)
     format = PIXMAN_x8b8g8r8;
     stride = stride_for_format_and_width(format, width);
 
+    for (uint32_t *abgr = (uint32_t *)image_data;
+         abgr < (uint32_t *)(image_data + (size_t)width * (size_t)height * 4);
+         abgr++) {
+        uint8_t alpha = (*abgr >> 24) & 0xff;
+        uint8_t red   = (*abgr >> 16) & 0xff;
+        uint8_t green = (*abgr >> 8) & 0xff;
+        uint8_t blue  = (*abgr >> 0) & 0xff;
+
+        if (alpha == 0xff)
+            continue;
+
+        if (alpha == 0x00)
+            blue = green = red = 0x00;
+        else {
+            blue = blue * alpha / 0xff;
+            green = green * alpha / 0xff;
+            red = red * alpha / 0xff;
+        }
+
+        *abgr = (uint32_t)alpha << 24 | red << 16 | green << 8 | blue;
+    }
+
+
     ok = NULL != (pix = pixman_image_create_bits_no_clear(
         format, width, height, (uint32_t *)image_data, stride));
 
