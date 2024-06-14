@@ -68,9 +68,6 @@ jxl_load(FILE *fp, const char *path)
     JxlDecoderSetParallelRunner(decoder, JxlResizableParallelRunner, runner);
 #endif
 
-    /* pixman expects premultiplied alpha */
-    JxlDecoderSetUnpremultiplyAlpha(decoder, JXL_FALSE);
-
     JxlDecoderSubscribeEvents(decoder, JXL_DEC_BASIC_INFO | JXL_DEC_FULL_IMAGE);
 
     JxlDecoderSetInput(decoder, file_data, file_size);
@@ -131,6 +128,28 @@ jxl_load(FILE *fp, const char *path)
         } else {
             break;
         }
+    }
+
+    for (uint32_t *abgr = (uint32_t *)image;
+         abgr < (uint32_t *)(image + (size_t)width * (size_t)height * 4);
+         abgr++) {
+        uint8_t alpha = (*abgr >> 24) & 0xff;
+        uint8_t red   = (*abgr >> 16) & 0xff;
+        uint8_t green = (*abgr >> 8) & 0xff;
+        uint8_t blue  = (*abgr >> 0) & 0xff;
+
+        if (alpha == 0xff)
+            continue;
+
+        if (alpha == 0x00)
+            blue = green = red = 0x00;
+        else {
+            blue = blue * alpha / 0xff;
+            green = green * alpha / 0xff;
+            red = red * alpha / 0xff;
+        }
+
+        *abgr = (uint32_t)alpha << 24 | red << 16 | green << 8 | blue;
     }
 
     pix = pixman_image_create_bits_no_clear(format, width, height,
