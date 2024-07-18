@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <nanosvg.h>
+#include <3rd-party/nanosvg/src/nanosvg.h>
 #define NANOSVGRAST_IMPLEMENTATION
-#include <nanosvgrast.h>
+#include <3rd-party/nanosvg/src/nanosvgrast.h>

@@ -12,6 +12,9 @@
 * JPEG XL support ([#14][14])
 * Log output now respects the [`NO_COLOR`](http://no-color.org/)
   environment variable.
+* Support for linking against a system provided nanosvg library. See
+  the new `-Dsystem-nanosvg` meson option. Defaults to `disabled`
+  (i.e. use the bundled version).
 
 [14]: https://codeberg.org/dnkl/wbg/pulls/14
 

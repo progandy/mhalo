@@ -1,12 +1,12 @@
 pkgname=wbg
-pkgver=1.2.0
+pkgver=1.2.0.r13.gd687493
 pkgrel=1
 pkgdesc="Super simple wallpaper application"
 arch=('x86_64' 'aarch64')
 url=https://codeberg.org/dnkl/wbg
 license=(mit)
 makedepends=('meson' 'ninja' 'wayland-protocols' 'tllist>=1.0.1')
-depends=('wayland' 'pixman' 'libjpeg-turbo' 'libpng' 'libwebp' 'libjxl')
+depends=('wayland' 'pixman' 'nanosvg' 'libjpeg-turbo' 'libpng' 'libwebp' 'libjxl')
 source=()
 changelog=CHANGELOG.md
 
@@ -16,7 +16,7 @@ pkgver() {
 }
 
 build() {
-  meson --prefix=/usr --buildtype=release --wrap-mode=nofallback ..
+  meson --prefix=/usr --buildtype=release --wrap-mode=nofallback -Dsystem-nanosvg=enabled ..
   ninja
 }
 

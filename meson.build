@@ -48,17 +48,28 @@ endif
 
 math = cc.find_library('m')
 pixman = dependency('pixman-1')
+system_nanosvg = cc.find_library('nanosvg', required: get_option('system-nanosvg'))
+system_nanosvgrast = cc.find_library('nanosvgrast', required: get_option('system-nanosvg'))
 png = dependency('libpng', required: get_option('png'))
 jpg = dependency('libjpeg', required: get_option('jpeg'))
 webp = dependency('libwebp', required: get_option('webp'))
 jxl = dependency('libjxl', required: get_option('jxl'))
 jxl_threads = dependency('libjxl_threads', required: false)
-svg = declare_dependency(
-  sources: ['nanosvg.c', '3rd-party/nanosvg/src/nanosvg.h',
-            'nanosvgrast.c', '3rd-party/nanosvg/src/nanosvgrast.h'],
-  include_directories: '3rd-party/nanosvg/src',
-  dependencies: math,
-)
+
+if system_nanosvg.found() and system_nanosvgrast.found()
+  svg = declare_dependency(
+    dependencies: [system_nanosvg, system_nanosvgrast, math]
+  )
+  svg_lib = 'nanosvg (system)'
+else
+  svg = declare_dependency(
+    sources: ['nanosvg.c', '3rd-party/nanosvg/src/nanosvg.h',
+              'nanosvgrast.c', '3rd-party/nanosvg/src/nanosvgrast.h'],
+    include_directories: '.',
+    dependencies: math,
+  )
+  svg_lib = 'nanosvg (bundled)'
+endif
 have_svg = get_option('svg')
 
 if not png.found() and not jpg.found() and not jxl.found() and not webp.found() and not have_svg
@@ -158,7 +169,7 @@ summary(
     'JPEG support': jpg.found(),
     'JPEG XL support': jxl.found(),
     'WebP support': webp.found(),
-    'SVG support': have_svg
+    'SVG support': svg_lib,
   },
   bool_yn: true
 )

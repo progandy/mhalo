@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include <nanosvgrast.h>
+#include <nanosvg/nanosvgrast.h>
 
 #define LOG_MODULE "svg"
 #define LOG_ENABLE_DBG 0
