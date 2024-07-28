@@ -15,6 +15,8 @@
 * Support for linking against a system provided nanosvg library. See
   the new `-Dsystem-nanosvg` meson option. Defaults to `disabled`
   (i.e. use the bundled version).
+* SVG images rendered at output resolution; this prevents them from
+  being unnecessarily blurry.
 
 [14]: https://codeberg.org/dnkl/wbg/pulls/14
 
