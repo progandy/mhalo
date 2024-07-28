@@ -169,7 +169,7 @@ summary(
     'JPEG support': jpg.found(),
     'JPEG XL support': jxl.found(),
     'WebP support': webp.found(),
-    'SVG support': svg_lib,
+    'SVG support': have_svg ? svg_lib : false,
   },
   bool_yn: true
 )
