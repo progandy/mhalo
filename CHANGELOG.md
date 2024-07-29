@@ -17,20 +17,28 @@
   (i.e. use the bundled version).
 * SVG images rendered at output resolution; this prevents them from
   being unnecessarily blurry.
+* Flags added to stretch wallpapers: `[-s|--stretch]` ([#13][13])
+
 
 [14]: https://codeberg.org/dnkl/wbg/pulls/14
+[13]: https://codeberg.org/dnkl/wbg/issues/13
 
 
 ### Changed
+
+* "Centered maximized" is the default method now ([#13][13])
+
+
 ### Deprecated
 ### Removed
+
+
 ### Fixed
 
 * Alpha not being applied correctly to PNG images.
 * Compilation error on musl libc ([#11][11]).
 
 [11]: https://codeberg.org/dnkl/wbg/issues/11
-
 
 ### Security
 ### Contributors
