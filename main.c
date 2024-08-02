@@ -94,7 +94,7 @@ render(struct output *output)
 
 #if defined(WBG_HAVE_SVG)
     if (!src) {
-        src = svg_render(width * scale, height * scale);
+        src = svg_render(width * scale, height * scale, stretch);
         is_svg = true;
     }
 #endif

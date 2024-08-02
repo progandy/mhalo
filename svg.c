@@ -1,4 +1,5 @@
 #include "svg.h"
+#include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -31,7 +32,7 @@ svg_load(FILE *fp, const char *path)
 }
 
 pixman_image_t *
-svg_render(const int width, const int height)
+svg_render(const int width, const int height, bool stretch)
 {
     pixman_image_t *pix = NULL;
     uint8_t *data = NULL;
@@ -42,8 +43,7 @@ svg_render(const int width, const int height)
 
     double sx = width / (double)svg_image->width;
     double sy = height / (double)svg_image->height;
-
-    float s = sx > sy ? sy : sx;
+    double s = stretch ? fmax(sx, sy) : fmin(sx, sy);
 
     float tx = (width - svg_image->width * s) / 2;
     float ty = (height - svg_image->height * s) / 2;
