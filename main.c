@@ -118,6 +118,7 @@ render(struct output *output)
                              0, 0, 0, 0, 0, 0, width * scale, height * scale);
 
     if (is_svg) {
+        free(pixman_image_get_data(src));
         pixman_image_unref(src);
     }
 
