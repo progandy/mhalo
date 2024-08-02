@@ -1,13 +1,14 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
-#include <poll.h>
-#include <errno.h>
-#include <signal.h>
-#include <unistd.h>
-#include <locale.h>
 #include <assert.h>
+#include <errno.h>
+#include <getopt.h>
+#include <locale.h>
+#include <poll.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include <sys/signalfd.h>
 
@@ -23,6 +24,7 @@
 #include "log.h"
 #include "shm.h"
 #include "version.h"
+#include "wbg-features.h"
 
 #if defined(WBG_HAVE_PNG)
  #include "png-wbg.h"
@@ -83,8 +85,9 @@ render(struct output *output)
 
     struct buffer *buf = shm_get_buffer(
         shm, width * scale, height * scale, (uintptr_t)output);
-    
-    if (!buf) return;
+
+    if (!buf)
+        return;
 
     pixman_image_t *src = image;
     bool is_svg = false;
@@ -111,7 +114,7 @@ render(struct output *output)
         pixman_image_set_filter(src, PIXMAN_FILTER_BEST, NULL, 0);
     }
 
-    pixman_image_composite32(PIXMAN_OP_SRC, src, NULL, buf->pix, 
+    pixman_image_composite32(PIXMAN_OP_SRC, src, NULL, buf->pix,
                              0, 0, 0, 0, 0, 0, width * scale, height * scale);
 
     if (is_svg) {
@@ -378,11 +381,73 @@ handle_global_remove(void *data, struct wl_registry *registry, uint32_t name)
 static const struct wl_registry_listener registry_listener = {
     .global = &handle_global,
     .global_remove = &handle_global_remove,
-};
+    };
+
+static void
+usage(const char *progname)
+{
+    printf("Usage: %s [OPTIONS] IMAGE_FILE\n"
+           "\n"
+           "Options:\n"
+           "  -s,--stretch     stretch the image to fill the screen\n"
+           "  -v,--version     show the version number and quit\n"
+           , progname);
+}
+
+static const char *
+version_and_features(void)
+{
+    static char buf[256];
+    snprintf(buf, sizeof(buf),
+             "version: %s %cpng %csvg %cjpg %cjxl %cwebp",
+             WBG_VERSION,
+             feature_png() ? '+' : '-',
+             feature_svg() ? '+' : '-',
+             feature_jpg() ? '+' : '-',
+             feature_jxl() ? '+' : '-',
+             feature_webp() ? '+' : '-');
+    return buf;
+}
 
 int
-main(int argc, const char *const *argv)
+main(int argc, char *const *argv)
 {
+    const char *progname = argv[0];
+
+    const struct option longopts[] = {
+        {"stretch", no_argument, 0, 's'},
+        {"version", no_argument, 0, 'v'},
+        {"help",    no_argument, 0, 'h'},
+        {NULL,      no_argument, 0, 0},
+    };
+
+    while (true) {
+        int c = getopt_long(argc, argv, ":svh", longopts, NULL);
+        if (c < 0)
+            break;
+
+        switch (c) {
+        case 's':
+            break;
+
+        case 'v':
+            printf("wbg version: %s\n", version_and_features());
+            return EXIT_SUCCESS;
+
+        case 'h':
+            usage(progname);
+            return EXIT_SUCCESS;
+
+        case ':':
+            fprintf(stderr, "error: -%c: missing required argument\n", optopt);
+            return EXIT_FAILURE;
+
+        case '?':
+            fprintf(stderr, "error: -%c: invalid option\n", optopt);
+            return EXIT_FAILURE;
+        }
+    }
+
     if (argc != 2 && (argc != 3 || (strcmp(argv[1], "-s") != 0 && strcmp(argv[1], "--stretch") != 0))) {
         fprintf(stderr, "Usage: %s [-s|--stretch] <image_path>\n", argv[0]);
         return EXIT_FAILURE;

@@ -158,6 +158,7 @@ executable(
     'log.c', 'log.h',
     'shm.c', 'shm.h',
     'stride.h',
+    'wbg-features.h',
     image_format_sources,
     wl_proto_src + wl_proto_headers, version,
     dependencies: [pixman, png, jpg, jxl, jxl_threads, webp, svg, wayland_client, tllist],
