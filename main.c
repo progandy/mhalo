@@ -90,16 +90,17 @@ render(struct output *output)
         return;
 
     pixman_image_t *src = image;
+#if defined(WBG_HAVE_SVG)
     bool is_svg = false;
+#endif
 
 #if defined(WBG_HAVE_SVG)
     if (!src) {
         src = svg_render(width * scale, height * scale, stretch);
         is_svg = true;
-    }
+    } else
 #endif
-
-    if (!is_svg) {
+    {
         double sx = (double)(width * scale) / pixman_image_get_width(src);
         double sy = (double)(height * scale) / pixman_image_get_height(src);
         double s = stretch ? fmax(sx, sy) : fmin(sx, sy);
@@ -117,10 +118,12 @@ render(struct output *output)
     pixman_image_composite32(PIXMAN_OP_SRC, src, NULL, buf->pix,
                              0, 0, 0, 0, 0, 0, width * scale, height * scale);
 
+#if defined(WBG_HAVE_SVG)
     if (is_svg) {
         free(pixman_image_get_data(src));
         pixman_image_unref(src);
     }
+#endif
 
     wl_surface_set_buffer_scale(output->surf, scale);
     wl_surface_attach(output->surf, buf->wl_buf, 0, 0);
