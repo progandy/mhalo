@@ -20,7 +20,7 @@
 #include <tllist.h>
 
 #define LOG_MODULE "mhalo"
-#define LOG_ENABLE_DBG 1
+#define LOG_ENABLE_DBG 0
 #include "log.h"
 #include "shm.h"
 #include "version.h"
@@ -36,8 +36,10 @@ static struct wl_shm *shm;
 static struct zwlr_layer_shell_v1 *layer_shell;
 static struct wl_seat *seat;
 
+static struct output *current_output = NULL;
 
 
+static bool should_exit = false;
 static bool have_argb8888 = false;
 
 static pixman_image_t *fill = NULL;
@@ -59,16 +61,30 @@ struct output {
     struct wl_surface *surf;
     struct zwlr_layer_surface_v1 *layer;
     bool configured;
+
+    int last_x;
+    int last_y;
+
+
+    // Add a frame_done flag for each output
+    bool frame_done;
+    bool wants_render;
+    bool rendered_without_cursor; 
 };
 static tll(struct output) outputs;
 
 static bool stretch = false;
 
-static bool frame_done = true;
+static void render(struct output *output);
 
 static void frame_done_callback(void *data, struct wl_callback *callback, uint32_t time) {
-    frame_done = true;
+    struct output *output = data;
+    output->frame_done = true;  // Mark frame as done for this specific output
     wl_callback_destroy(callback);
+   if (output->wants_render) {
+	   output->wants_render = false;
+	   render(output);
+   }
 }
 
 static const struct wl_callback_listener frame_listener = {
@@ -98,8 +114,15 @@ draw_circle(pixman_image_t *pix, int x, int y, int radius)
 
 
 static void render(struct output *output) {
-    if (!frame_done)
+    if (!output->frame_done) {
+	    output->wants_render = true;
         return;  // Skip rendering if the previous frame isn't done
+	}
+		 //
+    // If the output is not the current output and has already been rendered without the cursor, skip rendering
+    if (output != current_output && output->rendered_without_cursor) {
+        return;
+    }
 
     const int width = output->render_width;
     const int height = output->render_height;
@@ -114,20 +137,32 @@ static void render(struct output *output) {
     pixman_image_composite32(PIXMAN_OP_SRC, src, NULL, buf->pix,
                              0, 0, 0, 0, 0, 0, width * scale, height * scale);
 
-    // Draw a circle at the cursor position
-    draw_circle(buf->pix, cursor_x * scale, cursor_y * scale, 100);
-
     wl_surface_set_buffer_scale(output->surf, scale);
     wl_surface_attach(output->surf, buf->wl_buf, 0, 0);
-    wl_surface_damage_buffer(output->surf, 0, 0, width * scale, height * scale);
+    // Draw the circle only on the current output
+    wl_surface_damage_buffer(output->surf, (output->last_x - 50)*scale, (output->last_y - 50)*scale, 100 * scale, 100 * scale);
+    if (output->last_x == 0 && output->last_y == 0) {
+    	wl_surface_damage_buffer(output->surf, 0, 0, width * scale, height * scale);
+    }
+    if (output == current_output) {
+    	output->last_x = cursor_x;
+	output->last_y = cursor_y;
+        draw_circle(buf->pix, cursor_x * scale, cursor_y * scale, 40*scale);
+    	wl_surface_damage_buffer(output->surf, (cursor_x- 50)*scale, (cursor_y - 50)*scale, 100 * scale, 100 * scale);
+        output->rendered_without_cursor = false;  // Reset the flag as we're rendering the cursor
+    } else {
+        output->rendered_without_cursor = true;  // Set the flag since the output is rendered without the cursor
+    }
+
 
     // Create a callback to know when the frame is done
     struct wl_callback *callback = wl_surface_frame(output->surf);
-    wl_callback_add_listener(callback, &frame_listener, NULL);
-    frame_done = false;
+    wl_callback_add_listener(callback, &frame_listener, output);  // Pass output as data
+    output->frame_done = false;
 
     wl_surface_commit(output->surf);
 }
+
 
 static void
 layer_surface_configure(void *data, struct zwlr_layer_surface_v1 *surface,
@@ -285,7 +320,7 @@ add_surface_to_output(struct output *output)
 
     struct zwlr_layer_surface_v1 *layer = zwlr_layer_shell_v1_get_layer_surface(
         layer_shell, surf, output->wl_output,
-        ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM, "wallpaper");
+        ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "mouse_halo");
 
     zwlr_layer_surface_v1_set_exclusive_zone(layer, -1);
     zwlr_layer_surface_v1_set_keyboard_interactivity(layer, 0);
@@ -314,27 +349,34 @@ LOG_DBG("%u %u", cursor_x, cursor_y);
         render(&it->item);
 }
 
-static void
-pointer_enter(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y)
-{
-	LOG_DBG("ENTER");
+static void pointer_enter(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y) {
+    LOG_DBG("ENTER");
     cursor_x = wl_fixed_to_int(surface_x);
     cursor_y = wl_fixed_to_int(surface_y);
+
+    tll_foreach(outputs, it) {
+        if (it->item.surf == surface) {
+            current_output = &it->item;
+            break;
+        }
+    }
+    render(current_output);
 }
 
-static void
-pointer_leave(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface)
-{
-    // Hide or reset cursor position on leave if needed
+static void pointer_leave(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface) {
+    // When the pointer leaves the current output, set current_output to NULL
+    current_output = NULL;
 }
 
 
 static void wl_pointer_button(void *data, struct wl_pointer *wl_pointer, 
 				uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
+	should_exit = true;
 }
 
 static void wl_pointer_axis(void *data, struct wl_pointer *wl_pointer,
 		uint32_t time, uint32_t axis, wl_fixed_t value) {
+	should_exit = true;
 	// Who cares
 }
 
@@ -354,6 +396,7 @@ static void wl_pointer_axis_stop(void *data, struct wl_pointer *wl_pointer,
 
 static void wl_pointer_axis_discrete(void *data, struct wl_pointer *wl_pointer,
 		uint32_t axis, int32_t discrete) {
+	should_exit = true;
 	// Who cares
 }
 
@@ -436,7 +479,8 @@ handle_global(void *data, struct wl_registry *registry,
         tll_push_back(
             outputs, ((struct output){
                 .wl_output = wl_output, .wl_name = name,
-                .surf = NULL, .layer = NULL}));
+                .surf = NULL, .layer = NULL,
+		.frame_done = true}));
 
         struct output *output = &tll_back(outputs);
         wl_output_add_listener(wl_output, &output_listener, output);
@@ -478,10 +522,9 @@ static const struct wl_registry_listener registry_listener = {
 static void
 usage(const char *progname)
 {
-    printf("Usage: %s [OPTIONS] IMAGE_FILE\n"
+    printf("Usage: %s [OPTIONS] \n"
            "\n"
            "Options:\n"
-           "  -s,--stretch     stretch the image to fill the screen\n"
            "  -v,--version     show the version number and quit\n"
            , progname);
 }
@@ -502,20 +545,17 @@ main(int argc, char *const *argv)
     const char *progname = argv[0];
 
     const struct option longopts[] = {
-        {"stretch", no_argument, 0, 's'},
         {"version", no_argument, 0, 'v'},
         {"help",    no_argument, 0, 'h'},
         {NULL,      no_argument, 0, 0},
     };
 
     while (true) {
-        int c = getopt_long(argc, argv, ":svh", longopts, NULL);
+        int c = getopt_long(argc, argv, "vh", longopts, NULL);
         if (c < 0)
             break;
 
         switch (c) {
-        case 's':
-            break;
 
         case 'v':
             printf("mhalo version: %s\n", version_and_features());
@@ -535,10 +575,6 @@ main(int argc, char *const *argv)
         }
     }
 
-    if (argc != 2 && (argc != 3 || (strcmp(argv[1], "-s") != 0 && strcmp(argv[1], "--stretch") != 0))) {
-        fprintf(stderr, "Usage: %s [-s|--stretch] <image_path>\n", argv[0]);
-        return EXIT_FAILURE;
-    }
     stretch = (argc == 3);
 
     setlocale(LC_CTYPE, "");
@@ -546,7 +582,7 @@ main(int argc, char *const *argv)
 
     LOG_INFO("%s", WBG_VERSION);
 
-    pixman_color_t black = { 0, 0, 0, 0xdfff};
+    pixman_color_t black = { 0, 0, 0, 0xbfff};
     fill = pixman_image_create_solid_fill (&black);
 
 
@@ -603,7 +639,7 @@ main(int argc, char *const *argv)
         goto out;
     }
 
-    while (true) {
+    while (!should_exit) {
         wl_display_flush(display);
 
         struct pollfd fds[] = {

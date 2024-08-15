@@ -1,4 +1,4 @@
-project('wbg', 'c',
+project('mhalo', 'c',
         version: '1.2.0',
         license: 'MIT',
         meson_version: '>=0.58.0',
@@ -88,12 +88,11 @@ version = custom_target(
   command: [env, 'LC_ALL=C', generate_version_sh, meson.project_version(), '@CURRENT_SOURCE_DIR@', '@OUTPUT@'])
 
 executable(
-    'wbg',
+    'mhalo',
     'main.c',
     'log.c', 'log.h',
     'shm.c', 'shm.h',
     'stride.h',
-    'wbg-features.h',
     wl_proto_src + wl_proto_headers, version,
     dependencies: [pixman, math, wayland_client, tllist],
     install: true)
