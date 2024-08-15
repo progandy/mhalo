@@ -20,10 +20,13 @@
 #include <tllist.h>
 
 #define LOG_MODULE "mhalo"
-#define LOG_ENABLE_DBG 0
+#define LOG_ENABLE_DBG 1
 #include "log.h"
 #include "shm.h"
 #include "version.h"
+
+static int cursor_x = 100;
+static int cursor_y = 100;
 
 /* Top-level globals */
 static struct wl_display *display;
@@ -31,6 +34,9 @@ static struct wl_registry *registry;
 static struct wl_compositor *compositor;
 static struct wl_shm *shm;
 static struct zwlr_layer_shell_v1 *layer_shell;
+static struct wl_seat *seat;
+
+
 
 static bool have_argb8888 = false;
 
@@ -59,6 +65,27 @@ static tll(struct output) outputs;
 static bool stretch = false;
 
 static void
+draw_circle(pixman_image_t *pix, int x, int y, int radius)
+{
+    int width = pixman_image_get_width(pix);
+    int height = pixman_image_get_height(pix);
+
+    pixman_color_t white = { 0xFFFF, 0xFFFF, 0xFFFF, 0x3FFF };
+
+    for (int j = y - radius; j <= y + radius; j++) {
+        for (int i = x - radius; i <= x + radius; i++) {
+            if (i >= 0 && i < width && j >= 0 && j < height) {
+                int dx = i - x;
+                int dy = j - y;
+                if (dx * dx + dy * dy <= radius * radius) {
+                    pixman_image_fill_rectangles(PIXMAN_OP_HSL_LUMINOSITY, pix, &white, 1, &(pixman_rectangle16_t){i, j, 1, 1});
+                }
+            }
+        }
+    }
+}
+
+static void
 render(struct output *output)
 {
     const int width = output->render_width;
@@ -74,6 +101,10 @@ render(struct output *output)
     pixman_image_t *src = fill;
     pixman_image_composite32(PIXMAN_OP_SRC, src, NULL, buf->pix,
                              0, 0, 0, 0, 0, 0, width * scale, height * scale);
+
+    // Draw a circle at the cursor position
+    draw_circle(buf->pix, cursor_x * scale, cursor_y * scale, 100);  // 20 is the radius of the circle
+
 
     wl_surface_set_buffer_scale(output->surf, scale);
     wl_surface_attach(output->surf, buf->wl_buf, 0, 0);
@@ -229,10 +260,6 @@ add_surface_to_output(struct output *output)
 
     struct wl_surface *surf = wl_compositor_create_surface(compositor);
 
-    /* Default input region is 'infinite', while we want it to be empty */
-    struct wl_region *empty_region = wl_compositor_create_region(compositor);
-    wl_surface_set_input_region(surf, empty_region);
-    wl_region_destroy(empty_region);
 
     /* Surface is fully opaque (i.e. non-transparent) */
     struct wl_region *opaque_region = wl_compositor_create_region(compositor);
@@ -241,9 +268,10 @@ add_surface_to_output(struct output *output)
 
     struct zwlr_layer_surface_v1 *layer = zwlr_layer_shell_v1_get_layer_surface(
         layer_shell, surf, output->wl_output,
-        ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND, "wallpaper");
+        ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM, "wallpaper");
 
     zwlr_layer_surface_v1_set_exclusive_zone(layer, -1);
+    zwlr_layer_surface_v1_set_keyboard_interactivity(layer, 0);
     zwlr_layer_surface_v1_set_anchor(layer,
                                      ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
                                      ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
@@ -257,6 +285,75 @@ add_surface_to_output(struct output *output)
     wl_surface_commit(surf);
 }
 
+static void
+pointer_motion(void *data, struct wl_pointer *pointer, uint32_t time, wl_fixed_t surface_x, wl_fixed_t surface_y)
+{
+    cursor_x = wl_fixed_to_int(surface_x);
+    cursor_y = wl_fixed_to_int(surface_y);
+LOG_DBG("%u %u", cursor_x, cursor_y);
+
+    // Redraw the surface when the cursor moves
+    tll_foreach(outputs, it)
+        render(&it->item);
+}
+
+static void
+pointer_enter(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface, wl_fixed_t surface_x, wl_fixed_t surface_y)
+{
+	LOG_DBG("ENTER");
+    cursor_x = wl_fixed_to_int(surface_x);
+    cursor_y = wl_fixed_to_int(surface_y);
+}
+
+static void
+pointer_leave(void *data, struct wl_pointer *pointer, uint32_t serial, struct wl_surface *surface)
+{
+    // Hide or reset cursor position on leave if needed
+}
+
+
+static void wl_pointer_button(void *data, struct wl_pointer *wl_pointer, 
+				uint32_t serial, uint32_t time, uint32_t button, uint32_t state) {
+}
+
+static void wl_pointer_axis(void *data, struct wl_pointer *wl_pointer,
+		uint32_t time, uint32_t axis, wl_fixed_t value) {
+	// Who cares
+}
+
+static void wl_pointer_frame(void *data, struct wl_pointer *wl_pointer) {
+	// Who cares
+}
+
+static void wl_pointer_axis_source(void *data, struct wl_pointer *wl_pointer,
+		uint32_t axis_source) {
+	// Who cares
+}
+
+static void wl_pointer_axis_stop(void *data, struct wl_pointer *wl_pointer,
+		uint32_t time, uint32_t axis) {
+	// Who cares
+}
+
+static void wl_pointer_axis_discrete(void *data, struct wl_pointer *wl_pointer,
+		uint32_t axis, int32_t discrete) {
+	// Who cares
+}
+
+struct wl_pointer_listener pointer_listener = {
+	.enter = pointer_enter,
+	.leave = pointer_leave,
+	.motion = pointer_motion,
+	.button = wl_pointer_button,
+	.axis = wl_pointer_axis,
+	.frame = wl_pointer_frame,
+	.axis_source = wl_pointer_axis_source,
+	.axis_stop = wl_pointer_axis_stop,
+	.axis_discrete = wl_pointer_axis_discrete,
+};
+
+static struct wl_pointer *pointer;
+
 static bool
 verify_iface_version(const char *iface, uint32_t version, uint32_t wanted)
 {
@@ -267,6 +364,26 @@ verify_iface_version(const char *iface, uint32_t version, uint32_t wanted)
             iface, wanted, version);
     return false;
 }
+
+static void
+seat_capabilities(void *data, struct wl_seat *seat, enum wl_seat_capability capabilities)
+{
+    if (capabilities & WL_SEAT_CAPABILITY_POINTER) {
+LOG_DBG("ADDED POINTER");
+        pointer = wl_seat_get_pointer(seat);
+        wl_pointer_add_listener(pointer, &pointer_listener, NULL);
+    }
+}
+
+
+static void
+seat_name(void *data, struct wl_seat *seat, const char* name) {
+}
+
+static const struct wl_seat_listener seat_listener = {
+    .capabilities = &seat_capabilities,
+    .name = &seat_name,
+};
 
 static void
 handle_global(void *data, struct wl_registry *registry,
@@ -317,6 +434,10 @@ handle_global(void *data, struct wl_registry *registry,
         layer_shell = wl_registry_bind(
             registry, name, &zwlr_layer_shell_v1_interface, required);
     }
+else if (strcmp(interface, wl_seat_interface.name) == 0) {
+    seat = wl_registry_bind(registry, name, &wl_seat_interface, 1);
+    wl_seat_add_listener(seat, &seat_listener, NULL);
+}
 }
 
 static void
@@ -408,7 +529,7 @@ main(int argc, char *const *argv)
 
     LOG_INFO("%s", WBG_VERSION);
 
-    pixman_color_t black = { 0, 0, 0, 0xafff};
+    pixman_color_t black = { 0, 0, 0, 0xdfff};
     fill = pixman_image_create_solid_fill (&black);
 
 
@@ -538,6 +659,10 @@ out:
         wl_display_disconnect(display);
     if (fill != NULL)
         pixman_image_unref(fill);
+    if (pointer != NULL)
+      wl_pointer_destroy(pointer);
+    if (seat != NULL)
+      wl_seat_destroy(seat);
     log_deinit();
     return exit_code;
 }
