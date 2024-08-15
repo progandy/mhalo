@@ -70,12 +70,12 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie)
      */
     errno = 0;
     pool_fd = memfd_create(
-        "wbg-wayland-shm-buffer-pool",
+        "mhalo-wayland-shm-buffer-pool",
         MFD_CLOEXEC | MFD_ALLOW_SEALING | MFD_NOEXEC_SEAL);
 
     if (pool_fd < 0 && errno == EINVAL) {
         pool_fd = memfd_create(
-            "wbg-wayland-shm-buffer-pool", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+            "mhalo-wayland-shm-buffer-pool", MFD_CLOEXEC | MFD_ALLOW_SEALING);
     }
 
     if (pool_fd == -1) {
@@ -113,7 +113,7 @@ shm_get_buffer(struct wl_shm *shm, int width, int height, unsigned long cookie)
     }
 
     buf = wl_shm_pool_create_buffer(
-        pool, 0, width, height, stride, WL_SHM_FORMAT_XRGB8888);
+        pool, 0, width, height, stride, WL_SHM_FORMAT_ARGB8888);
     if (buf == NULL) {
         LOG_ERR("failed to create SHM buffer");
         goto err;

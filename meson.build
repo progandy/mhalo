@@ -48,54 +48,6 @@ endif
 
 math = cc.find_library('m')
 pixman = dependency('pixman-1')
-system_nanosvg = cc.find_library('nanosvg', required: get_option('system-nanosvg'))
-system_nanosvgrast = cc.find_library('nanosvgrast', required: get_option('system-nanosvg'))
-png = dependency('libpng', required: get_option('png'))
-jpg = dependency('libjpeg', required: get_option('jpeg'))
-webp = dependency('libwebp', required: get_option('webp'))
-jxl = dependency('libjxl', required: get_option('jxl'))
-jxl_threads = dependency('libjxl_threads', required: false)
-
-if system_nanosvg.found() and system_nanosvgrast.found()
-  svg = declare_dependency(
-    dependencies: [system_nanosvg, system_nanosvgrast, math]
-  )
-  svg_lib = 'nanosvg (system)'
-else
-  svg = declare_dependency(
-    sources: ['nanosvg.c', '3rd-party/nanosvg/src/nanosvg.h',
-              'nanosvgrast.c', '3rd-party/nanosvg/src/nanosvgrast.h'],
-    include_directories: '.',
-    dependencies: math,
-  )
-  svg_lib = 'nanosvg (bundled)'
-endif
-have_svg = get_option('svg')
-
-if not png.found() and not jpg.found() and not jxl.found() and not webp.found() and not have_svg
-  error('you must enable at least one image format')
-endif
-
-if png.found()
-  add_project_arguments('-DWBG_HAVE_PNG=1', language: 'c')
-endif
-if jpg.found()
-  add_project_arguments('-DWBG_HAVE_JPG=1', language:'c')
-endif
-if webp.found()
-  add_project_arguments('-DWBG_HAVE_WEBP=1', language:'c')
-endif
-if have_svg
-  add_project_arguments('-DWBG_HAVE_SVG=1', language:'c')
-endif
-if jxl.found()
-  add_project_arguments('-DWBG_HAVE_JXL=1', language:'c')
-  if jxl_threads.found()
-    add_project_arguments('-DWBG_HAVE_JXL_THREADS=1', language:'c')
-  endif
-else
-  jxl_threads = dependency('', required: false)
-endif
 
 wayland_protocols = dependency('wayland-protocols')
 wayland_client = dependency('wayland-client')
@@ -135,23 +87,6 @@ version = custom_target(
   output: 'version.h',
   command: [env, 'LC_ALL=C', generate_version_sh, meson.project_version(), '@CURRENT_SOURCE_DIR@', '@OUTPUT@'])
 
-image_format_sources = []
-if png.found()
-  image_format_sources += ['png.c', 'png-wbg.h']
-endif
-if jpg.found()
-  image_format_sources += ['jpg.c', 'jpg.h']
-endif
-if jxl.found()
-  image_format_sources += ['jxl.c', 'jxl.h']
-endif
-if webp.found()
-  image_format_sources += ['webp.c', 'webp.h']
-endif
-if have_svg
-  image_format_sources += ['svg.c', 'svg.h']
-endif
-
 executable(
     'wbg',
     'main.c',
@@ -159,18 +94,7 @@ executable(
     'shm.c', 'shm.h',
     'stride.h',
     'wbg-features.h',
-    image_format_sources,
     wl_proto_src + wl_proto_headers, version,
-    dependencies: [pixman, png, jpg, jxl, jxl_threads, webp, svg, wayland_client, tllist],
+    dependencies: [pixman, math, wayland_client, tllist],
     install: true)
 
-summary(
-  {
-    'PNG support': png.found(),
-    'JPEG support': jpg.found(),
-    'JPEG XL support': jxl.found(),
-    'WebP support': webp.found(),
-    'SVG support': have_svg ? svg_lib : false,
-  },
-  bool_yn: true
-)

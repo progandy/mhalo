@@ -19,28 +19,11 @@
 #include <pixman.h>
 #include <tllist.h>
 
-#define LOG_MODULE "wbg"
+#define LOG_MODULE "mhalo"
 #define LOG_ENABLE_DBG 0
 #include "log.h"
 #include "shm.h"
 #include "version.h"
-#include "wbg-features.h"
-
-#if defined(WBG_HAVE_PNG)
- #include "png-wbg.h"
-#endif
-#if defined(WBG_HAVE_JPG)
- #include "jpg.h"
-#endif
-#if defined(WBG_HAVE_WEBP)
- #include "webp.h"
-#endif
-#if defined(WBG_HAVE_SVG)
- #include "svg.h"
-#endif
-#if defined(WBG_HAVE_JXL)
- #include "jxl.h"
-#endif
 
 /* Top-level globals */
 static struct wl_display *display;
@@ -49,10 +32,9 @@ static struct wl_compositor *compositor;
 static struct wl_shm *shm;
 static struct zwlr_layer_shell_v1 *layer_shell;
 
-static bool have_xrgb8888 = false;
+static bool have_argb8888 = false;
 
-/* TODO: one per output */
-static pixman_image_t *image;
+static pixman_image_t *fill = NULL;
 
 struct output {
     struct wl_output *wl_output;
@@ -89,41 +71,9 @@ render(struct output *output)
     if (!buf)
         return;
 
-    pixman_image_t *src = image;
-#if defined(WBG_HAVE_SVG)
-    bool is_svg = false;
-#endif
-
-#if defined(WBG_HAVE_SVG)
-    if (!src) {
-        src = svg_render(width * scale, height * scale, stretch);
-        is_svg = true;
-    } else
-#endif
-    {
-        double sx = (double)(width * scale) / pixman_image_get_width(src);
-        double sy = (double)(height * scale) / pixman_image_get_height(src);
-        double s = stretch ? fmax(sx, sy) : fmin(sx, sy);
-
-        pixman_transform_t t;
-        pixman_transform_init_scale(&t, pixman_double_to_fixed(1/s), pixman_double_to_fixed(1/s));
-        pixman_transform_translate(&t, NULL,
-            pixman_double_to_fixed((pixman_image_get_width(src) - width * scale / s) / 2),
-            pixman_double_to_fixed((pixman_image_get_height(src) - height * scale / s) / 2));
-
-        pixman_image_set_transform(src, &t);
-        pixman_image_set_filter(src, PIXMAN_FILTER_BEST, NULL, 0);
-    }
-
+    pixman_image_t *src = fill;
     pixman_image_composite32(PIXMAN_OP_SRC, src, NULL, buf->pix,
                              0, 0, 0, 0, 0, 0, width * scale, height * scale);
-
-#if defined(WBG_HAVE_SVG)
-    if (is_svg) {
-        free(pixman_image_get_data(src));
-        pixman_image_unref(src);
-    }
-#endif
 
     wl_surface_set_buffer_scale(output->surf, scale);
     wl_surface_attach(output->surf, buf->wl_buf, 0, 0);
@@ -260,8 +210,8 @@ static const struct wl_output_listener output_listener = {
 static void
 shm_format(void *data, struct wl_shm *wl_shm, uint32_t format)
 {
-    if (format == WL_SHM_FORMAT_XRGB8888)
-        have_xrgb8888 = true;
+    if (format == WL_SHM_FORMAT_ARGB8888)
+        have_argb8888 = true;
 }
 
 static const struct wl_shm_listener shm_listener = {
@@ -403,13 +353,8 @@ version_and_features(void)
 {
     static char buf[256];
     snprintf(buf, sizeof(buf),
-             "version: %s %cpng %csvg %cjpg %cjxl %cwebp",
-             WBG_VERSION,
-             feature_png() ? '+' : '-',
-             feature_svg() ? '+' : '-',
-             feature_jpg() ? '+' : '-',
-             feature_jxl() ? '+' : '-',
-             feature_webp() ? '+' : '-');
+             "version: %s",
+             WBG_VERSION);
     return buf;
 }
 
@@ -435,7 +380,7 @@ main(int argc, char *const *argv)
             break;
 
         case 'v':
-            printf("wbg version: %s\n", version_and_features());
+            printf("mhalo version: %s\n", version_and_features());
             return EXIT_SUCCESS;
 
         case 'h':
@@ -456,7 +401,6 @@ main(int argc, char *const *argv)
         fprintf(stderr, "Usage: %s [-s|--stretch] <image_path>\n", argv[0]);
         return EXIT_FAILURE;
     }
-    const char *image_path = argv[argc - 1];
     stretch = (argc == 3);
 
     setlocale(LC_CTYPE, "");
@@ -464,40 +408,9 @@ main(int argc, char *const *argv)
 
     LOG_INFO("%s", WBG_VERSION);
 
-    image = NULL;
+    pixman_color_t black = { 0, 0, 0, 0xafff};
+    fill = pixman_image_create_solid_fill (&black);
 
-    FILE *fp = fopen(image_path, "rb");
-    if (fp == NULL) {
-        LOG_ERRNO("%s: failed to open", image_path);
-        fprintf(stderr, "\nUsage: %s [-s|--stretch] <image_path>\n", argv[0]);
-        return EXIT_FAILURE;
-    }
-
-#if defined(WBG_HAVE_JPG)
-    if (image == NULL)
-        image = jpg_load(fp, image_path);
-#endif
-#if defined(WBG_HAVE_PNG)
-    if (image == NULL)
-        image = png_load(fp, image_path);
-#endif
-#if defined(WBG_HAVE_WEBP)
-    if (image == NULL)
-        image = webp_load(fp, image_path);
-#endif
-#if defined(WBG_HAVE_JXL)
-    if (image == NULL)
-        image = jxl_load(fp, image_path);
-#endif
-    if (image == NULL
-#if defined(WBG_HAVE_SVG)
-        && !svg_load(fp, image_path)
-#endif
-    ) {
-        LOG_ERR("%s: failed to load", image_path);
-        fclose(fp);
-        return EXIT_FAILURE;
-    }
 
     int exit_code = EXIT_FAILURE;
     int sig_fd = -1;
@@ -535,7 +448,7 @@ main(int argc, char *const *argv)
 
     wl_display_roundtrip(display);
 
-    if (!have_xrgb8888) {
+    if (!have_argb8888) {
         LOG_ERR("shm: XRGB image format not available");
         goto out;
     }
@@ -623,14 +536,8 @@ out:
         wl_registry_destroy(registry);
     if (display != NULL)
         wl_display_disconnect(display);
-    if (image != NULL) {
-        free(pixman_image_get_data(image));
-        pixman_image_unref(image);
-    }
-#if defined(WBG_HAVE_SVG)
-    svg_free();
-#endif
+    if (fill != NULL)
+        pixman_image_unref(fill);
     log_deinit();
-    fclose(fp);
     return exit_code;
 }
