@@ -64,6 +64,17 @@ static tll(struct output) outputs;
 
 static bool stretch = false;
 
+static bool frame_done = true;
+
+static void frame_done_callback(void *data, struct wl_callback *callback, uint32_t time) {
+    frame_done = true;
+    wl_callback_destroy(callback);
+}
+
+static const struct wl_callback_listener frame_listener = {
+    .done = frame_done_callback,
+};
+
 static void
 draw_circle(pixman_image_t *pix, int x, int y, int radius)
 {
@@ -85,15 +96,16 @@ draw_circle(pixman_image_t *pix, int x, int y, int radius)
     }
 }
 
-static void
-render(struct output *output)
-{
+
+static void render(struct output *output) {
+    if (!frame_done)
+        return;  // Skip rendering if the previous frame isn't done
+
     const int width = output->render_width;
     const int height = output->render_height;
     const int scale = output->scale;
 
-    struct buffer *buf = shm_get_buffer(
-        shm, width * scale, height * scale, (uintptr_t)output);
+    struct buffer *buf = shm_get_buffer(shm, width * scale, height * scale, (uintptr_t)output);
 
     if (!buf)
         return;
@@ -103,12 +115,17 @@ render(struct output *output)
                              0, 0, 0, 0, 0, 0, width * scale, height * scale);
 
     // Draw a circle at the cursor position
-    draw_circle(buf->pix, cursor_x * scale, cursor_y * scale, 100);  // 20 is the radius of the circle
-
+    draw_circle(buf->pix, cursor_x * scale, cursor_y * scale, 100);
 
     wl_surface_set_buffer_scale(output->surf, scale);
     wl_surface_attach(output->surf, buf->wl_buf, 0, 0);
     wl_surface_damage_buffer(output->surf, 0, 0, width * scale, height * scale);
+
+    // Create a callback to know when the frame is done
+    struct wl_callback *callback = wl_surface_frame(output->surf);
+    wl_callback_add_listener(callback, &frame_listener, NULL);
+    frame_done = false;
+
     wl_surface_commit(output->surf);
 }
 
