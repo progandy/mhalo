@@ -27,6 +27,7 @@
 
 static int cursor_x = 100;
 static int cursor_y = 100;
+#define RADIUS 60
 
 /* Top-level globals */
 static struct wl_display *display;
@@ -115,6 +116,86 @@ static void draw_circle(pixman_image_t *pix, int x, int y, int radius) {
   }
 }
 
+#define double_to_color(x)					\
+    (((uint32_t) ((x)*65536)) - (((uint32_t) ((x)*65536)) >> 16))
+
+#define PIXMAN_STOP(offset,r,g,b,a)		\
+    { pixman_double_to_fixed (offset),		\
+	{					\
+	double_to_color (r),			\
+	double_to_color (g),			\
+	double_to_color (b),			\
+	double_to_color (a)			\
+	}					\
+    }
+
+
+void draw_circle_with_gradient(pixman_image_t* image, int cx, int cy, int radius) {
+    // Define the points for the radial gradient
+    pixman_point_fixed_t inner_circle = { pixman_int_to_fixed(radius), pixman_int_to_fixed(radius) };
+    pixman_point_fixed_t outer_circle = { pixman_int_to_fixed(radius), pixman_int_to_fixed(radius) };
+    
+    pixman_fixed_t inner_radius = pixman_int_to_fixed(0);
+    pixman_fixed_t outer_radius = pixman_int_to_fixed(radius);
+    
+    // Define the colors for the gradient: fully transparent at the center, fully opaque at the outer edge
+    pixman_gradient_stop_t stops[3] = {
+      PIXMAN_STOP (0.0,        1, 1, 1, 1),
+      PIXMAN_STOP (0.7,        1, 1, 1, 1),
+      PIXMAN_STOP (1.0,        0, 0, 0, 0),
+    };
+    
+      pixman_gradient_stop_t stops2[4] = {
+      PIXMAN_STOP (0.0,        1, 1, 1, 0.15),
+      PIXMAN_STOP (0.7,        1, 1, 1, 0.1),
+      PIXMAN_STOP (0.8,        1, 1, 0.31, 0.3),
+      PIXMAN_STOP (1.0,        0, 0, 0, 0),
+    };
+    
+
+    
+    // Create the gradient
+    pixman_image_t *radial_gradient = pixman_image_create_radial_gradient(
+        &inner_circle, &outer_circle,
+        inner_radius, outer_radius,
+        stops, 3
+    );
+    
+        // Create the gradient
+    pixman_image_t *radial_gradient2 = pixman_image_create_radial_gradient(
+        &inner_circle, &outer_circle,
+        inner_radius, outer_radius,
+        stops2, 4
+    );
+    
+    // Set the gradient as the source and composite it onto the image
+    pixman_image_composite32(
+        PIXMAN_OP_OUT_REVERSE, 
+        radial_gradient,  // Source: the gradient
+        NULL,             // Mask: no mask
+        image,            // Destination: the image
+        0, 0,             // Source origin
+        0, 0,             // Mask origin
+        cx - radius, cy - radius, // Destination origin
+        2 * radius, 2 * radius // Destination size (width and height)
+    );
+    
+    pixman_image_composite32(
+        PIXMAN_OP_OVER, 
+        radial_gradient2,  // Source: the gradient
+        NULL,             // Mask: no mask
+        image,            // Destination: the image
+        0, 0,             // Source origin
+        0, 0,             // Mask origin
+        cx - radius, cy - radius, // Destination origin
+        2 * radius, 2 * radius // Destination size (width and height)
+    );
+    
+    // Cleanup
+    pixman_image_unref(radial_gradient);
+    pixman_image_unref(radial_gradient2);
+}
+
 static void render(struct output *output) {
   if (!output->frame_done) {
     output->wants_render = true;
@@ -146,18 +227,23 @@ static void render(struct output *output) {
   wl_surface_set_buffer_scale(output->surf, scale);
   wl_surface_attach(output->surf, buf->wl_buf, 0, 0);
   // Draw the circle only on the current output
-  wl_surface_damage_buffer(output->surf, (output->last_x - 50) * scale,
-                           (output->last_y - 50) * scale, 100 * scale,
-                           100 * scale);
+  wl_surface_damage_buffer(output->surf, (output->last_x - RADIUS - 1) * scale,
+                           (output->last_y - RADIUS - 1) * scale, (RADIUS +1) * 2 * scale,
+                           (RADIUS +1) * 2 * scale);
   if (output->last_x == 0 && output->last_y == 0) {
     wl_surface_damage_buffer(output->surf, 0, 0, width * scale, height * scale);
   }
   if (output == current_output) {
     output->last_x = cursor_x;
     output->last_y = cursor_y;
-    draw_circle(buf->pix, cursor_x * scale, cursor_y * scale, 40 * scale);
-    wl_surface_damage_buffer(output->surf, (cursor_x - 50) * scale,
-                             (cursor_y - 50) * scale, 100 * scale, 100 * scale);
+    
+    
+    
+    if (false) draw_circle(buf->pix, cursor_x * scale, cursor_y * scale, RADIUS * scale);
+    //draw_circle(buf->pix, cursor_x * scale, cursor_y * scale, 40 * scale);
+    draw_circle_with_gradient(buf->pix, cursor_x * scale, cursor_y * scale, RADIUS * scale);
+    wl_surface_damage_buffer(output->surf, (cursor_x - RADIUS - 1) * scale,
+                             (cursor_y - RADIUS - 1) * scale, (RADIUS + 1) * 2 * scale, (RADIUS + 1) * 2 * scale);
     output->rendered_without_cursor =
         false; // Reset the flag as we're rendering the cursor
   } else {
