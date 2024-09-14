@@ -8,6 +8,8 @@ and show a bright circle around the mouse cursor.
 
 After you have found your cursor, any mouse click will close mhalo.
 
+![Screenshot of mhalo](./assets/screenshot.jpg)
+
 ## Limitations
 
 MHalo may require you to move your cursor to be informed of its position.
